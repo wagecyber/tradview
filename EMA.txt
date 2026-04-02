@@ -1,0 +1,121 @@
+//@version=6
+indicator("EMA Channel with Shapes & Alerts", overlay=true)
+
+// INPUTS
+EMAGainHighTrigger = input.float(0.1, "EMAGain High Trigger")  // 0.1% threshold
+EMAGainLowTrigger = input.float(-0.1, "EMAGain Low Trigger")  // -0.1% threshold
+
+EMA1Length = input.int(50, "EMA 1")
+EMA2Length = input.int(5, "EMA 2")
+
+ChannelEMALength = input.int(25, "Channel EMA Length")
+ChannelATRLength = input.int(400, "Channel ATR Length")
+ChannelHighMultiplier = input.float(2.0, "Channel High Multiplier")
+ChannelLowMultiplier = input.float(2.3, "Channel Low Multiplier")
+
+// STYLE INPUTS
+buyTriggerShow = input.bool(true, "Buy Trigger")
+buyTriggerColor = input.color(color.new(color.blue, 0), "Buy Trigger Color")
+
+sellTriggerShow = input.bool(true, "Sell Trigger")
+sellTriggerColor = input.color(color.new(color.red, 0), "Sell Trigger Color")
+
+channelHighShow = input.bool(true, "Channel High")
+channelHighColor = input.color(color.new(color.teal, 90), "Channel High Color")
+
+channelLowShow = input.bool(true, "Channel Low")
+channelLowColor = input.color(color.new(color.red, 90), "Channel Low Color")
+
+shapesLongShow = input.bool(true, "Show Shapes Long")
+shapesLongColor = input.color(color.new(color.blue, 0), "Shapes Long Color")
+shapesLongPosition = input.string("Below bar", "Shape Long Location", options=["Below bar", "Above bar"])
+shapesLongShapeStr = input.string("triangleup", "Shapes Long Symbol",
+     options=["arrowdown", "arrowup", "circle", "cross", "diamond", "flag",
+              "labeldown", "labelup", "square", "triangledown", "triangleup", "xcross"])
+
+shapesShortShow = input.bool(true, "Show Shapes Short")
+shapesShortColor = input.color(color.new(color.red, 0), "Shapes Short Color")
+shapesShortPosition = input.string("Above bar", "Shape Short Location", options=["Below bar", "Above bar"])
+shapesShortShapeStr = input.string("triangledown", "Shapes Short Symbol",
+     options=["arrowdown", "arrowup", "circle", "cross", "diamond", "flag",
+              "labeldown", "labelup", "square", "triangledown", "triangleup", "xcross"])
+
+// Background plot inputs
+plotsBgShow0 = input.bool(true, "Plots Background 0")
+plotsBgColor0 = input.color(color.new(color.green, 90), "Plots Background Color 0")
+plotsBgShow1 = input.bool(true, "Plots Background 1")
+plotsBgColor1 = input.color(color.new(color.black, 100), "Plots Background Color 1")
+
+// Fungsi mapping simbol string ke enum shape
+f_get_shape(s) =>
+    switch s
+        "arrowdown" => shape.arrowdown
+        "arrowup" => shape.arrowup
+        "circle" => shape.circle
+        "cross" => shape.cross
+        "diamond" => shape.diamond
+        "flag" => shape.flag
+        "labeldown" => shape.labeldown
+        "labelup" => shape.labelup
+        "square" => shape.square
+        "triangledown" => shape.triangledown
+        "triangleup" => shape.triangleup
+        "xcross" => shape.xcross
+        => shape.circle  // default
+
+// CALCULATION
+ema1 = ta.ema(close, EMA1Length)
+ema2 = ta.ema(close, EMA2Length)
+
+// Hitung emaGain dalam persen (%)
+emaGain = ((ema1 - ema2) / ema1) * 100
+
+channelEMA = ta.ema(close, ChannelEMALength)
+channelATR = ta.atr(ChannelATRLength)
+channelHigh = channelEMA + ChannelHighMultiplier * channelATR
+channelLow = channelEMA - ChannelLowMultiplier * channelATR
+
+// PLOT LINES
+plot(ema1, title="EMA 1", color=color.blue)
+plot(ema2, title="EMA 2", color=color.orange)
+plot(channelHighShow ? channelHigh : na, title="Channel High", color=channelHighColor)
+plot(channelLowShow ? channelLow : na, title="Channel Low", color=channelLowColor)
+plot(channelEMA, title="Channel EMA", color=color.gray)
+
+// BACKGROUND FILL
+bgcolor(plotsBgShow0 and close > channelEMA ? plotsBgColor0 : na, 85)
+bgcolor(plotsBgShow1 and close < channelEMA ? plotsBgColor1 : na, 85)
+
+// SIGNALS berdasar trigger
+longSignal = emaGain > EMAGainHighTrigger
+shortSignal = emaGain < EMAGainLowTrigger
+
+// PLOT SHAPES
+plotshape(series=buyTriggerShow and longSignal and shapesLongShow,
+     title="Buy Shape",
+     location=shapesLongPosition == "Below bar" ? location.belowbar : location.abovebar,
+     color=shapesLongColor,
+     style=f_get_shape(shapesLongShapeStr),
+     size=size.small)
+
+plotshape(series=sellTriggerShow and shortSignal and shapesShortShow,
+     title="Sell Shape",
+     location=shapesShortPosition == "Above bar" ? location.abovebar : location.belowbar,
+     color=shapesShortColor,
+     style=f_get_shape(shapesShortShapeStr),
+     size=size.small)
+
+// Garis trigger EMA Gain horizontal
+var line buyTriggerLine = na
+var line sellTriggerLine = na
+if barstate.islast
+    line.delete(buyTriggerLine)
+    line.delete(sellTriggerLine)
+    buyTriggerLine := line.new(bar_index[1], EMAGainHighTrigger, bar_index, EMAGainHighTrigger,
+        extend=extend.right, color=buyTriggerColor, style=line.style_solid)
+    sellTriggerLine := line.new(bar_index[1], EMAGainLowTrigger, bar_index, EMAGainLowTrigger,
+        extend=extend.right, color=sellTriggerColor, style=line.style_solid)
+
+// ALERTS
+alertcondition(longSignal, title="Buy Alert", message="EMA Gain Buy Signal triggered")
+alertcondition(shortSignal, title="Sell Alert", message="EMA Gain Sell Signal triggered")

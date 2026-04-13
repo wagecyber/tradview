@@ -1,0 +1,188 @@
+//@version=6
+indicator("Fib", overlay=true, max_lines_count=300, max_labels_count=300, max_boxes_count=200)
+
+// =========================
+// Input
+// =========================
+leftBars    = input.int(5, "Pivot Left Bars", minval=1)
+rightBars   = input.int(5, "Pivot Right Bars", minval=1)
+extendRight = input.bool(true, "Extend Fib Lines Right")
+showLabels  = input.bool(true, "Show Level Labels")
+labelSizeOpt = input.string("normal", "Ukuran Font Label", options=["tiny","small","normal","large","huge"])
+
+upColor     = input.color(color.new(color.lime, 0), "Up Swing Color")
+downColor   = input.color(color.new(color.red, 0), "Down Swing Color")
+
+// Warna garis level (clean)
+line0Color    = input.color(color.new(color.white, 0), "Line 0.0")
+line236Color  = input.color(color.new(color.red, 0), "Line 0.236")
+line382Color  = input.color(color.new(color.yellow, 0), "Line 0.382")
+line5Color    = input.color(color.new(color.lime, 0), "Line 0.5")
+line618Color  = input.color(color.new(color.aqua, 0), "Line 0.618")
+line1Color    = input.color(color.new(color.blue, 0), "Line 1.0")
+line1618Color = input.color(color.new(color.teal, 0), "Line 1.618")
+
+// Warna zona (mirip contoh)
+zoneTopColor   = input.color(color.new(color.red, 82), "Zona Atas (0 - 0.382)")
+zoneEntryColor = input.color(color.new(color.yellow, 82), "Zona Entry (0.382 - 0.618)")
+zoneBotColor   = input.color(color.new(color.blue, 82), "Zona Bawah (0.618 - 1)")
+
+// Level yang ditampilkan
+show0    = input.bool(true,  "0.0")
+show236  = input.bool(true,  "0.236")
+show382  = input.bool(true,  "0.382")
+show5    = input.bool(true,  "0.5")
+show618  = input.bool(true,  "0.618")
+show1    = input.bool(true,  "1.0")
+show1618 = input.bool(false, "1.618 (Ext)")
+
+// =========================
+// Pivot detection
+// =========================
+ph = ta.pivothigh(high, leftBars, rightBars)
+pl = ta.pivotlow(low, leftBars, rightBars)
+
+var float lastHigh = na
+var int lastHighBar = na
+var float lastLow = na
+var int lastLowBar = na
+
+if not na(ph)
+    lastHigh := ph
+    lastHighBar := bar_index - rightBars
+
+if not na(pl)
+    lastLow := pl
+    lastLowBar := bar_index - rightBars
+
+bool isUpSwing = na(lastLowBar) or na(lastHighBar) ? true : lastLowBar > lastHighBar
+
+float p0 = na
+float p1 = na
+int b0 = na
+int b1 = na
+
+if not na(lastHigh) and not na(lastLow)
+    if isUpSwing
+        p0 := lastLow
+        p1 := lastHigh
+        b0 := lastLowBar
+        b1 := lastHighBar
+    else
+        p0 := lastHigh
+        p1 := lastLow
+        b0 := lastHighBar
+        b1 := lastLowBar
+
+priceRange = p1 - p0
+
+// =========================
+// Fib values
+// =========================
+fib0    = p0 + priceRange * 0.0
+fib236  = p0 + priceRange * 0.236
+fib382  = p0 + priceRange * 0.382
+fib5    = p0 + priceRange * 0.5
+fib618  = p0 + priceRange * 0.618
+fib1    = p0 + priceRange * 1.0
+fib1618 = p0 + priceRange * 1.618
+
+// =========================
+// Draw objects
+// =========================
+var line[] fibLines = array.new_line()
+var label[] fibLabels = array.new_label()
+var box[] fibZones = array.new_box()
+
+f_clear() =>
+    if array.size(fibLines) > 0
+        for i = array.size(fibLines) - 1 to 0
+            line.delete(array.get(fibLines, i))
+        array.clear(fibLines)
+
+    if array.size(fibLabels) > 0
+        for i = array.size(fibLabels) - 1 to 0
+            label.delete(array.get(fibLabels, i))
+        array.clear(fibLabels)
+
+    if array.size(fibZones) > 0
+        for i = array.size(fibZones) - 1 to 0
+            box.delete(array.get(fibZones, i))
+        array.clear(fibZones)
+
+f_level_color(_ratio) =>
+    _ratio == 0.0 ? line0Color :
+     _ratio == 0.236 ? line236Color :
+     _ratio == 0.382 ? line382Color :
+     _ratio == 0.5 ? line5Color :
+     _ratio == 0.618 ? line618Color :
+     _ratio == 1.0 ? line1Color : line1618Color
+
+f_label_size(_opt) =>
+    _opt == "tiny" ? size.tiny :
+     _opt == "small" ? size.small :
+     _opt == "normal" ? size.normal :
+     _opt == "large" ? size.large : size.huge
+
+f_draw_level(_ratio, _price, _show) =>
+    if _show and not na(_price) and not na(b0)
+        c = f_level_color(_ratio)
+        w = _ratio == 0.382 or _ratio == 0.5 or _ratio == 0.618 ? 2 : 1
+        ln = line.new(
+             x1=b0, y1=_price, x2=bar_index, y2=_price,
+             color=c, width=w,
+             extend=extendRight ? extend.right : extend.none
+         )
+        array.push(fibLines, ln)
+
+        if showLabels
+            txt = str.format("{0} ({1})", str.tostring(_ratio), str.tostring(_price, format.mintick))
+            lb = label.new(
+                 x=bar_index, y=_price, text=txt,
+                 textcolor=color.white, color=color.new(color.black, 75),
+                 style=label.style_label_left, size=f_label_size(labelSizeOpt)
+             )
+            array.push(fibLabels, lb)
+
+pivotChanged = (not na(ph)) or (not na(pl))
+
+if pivotChanged and not na(p0) and not na(p1)
+    f_clear()
+
+    // Anchor line
+    anchorColor = isUpSwing ? upColor : downColor
+    anchorLine = line.new(b0, p0, b1, p1, color=anchorColor, width=2)
+    array.push(fibLines, anchorLine)
+
+    // Levels (clean)
+    f_draw_level(0.0, fib0, show0)
+    f_draw_level(0.236, fib236, show236)
+    f_draw_level(0.382, fib382, show382)
+    f_draw_level(0.5, fib5, show5)
+    f_draw_level(0.618, fib618, show618)
+    f_draw_level(1.0, fib1, show1)
+    f_draw_level(1.618, fib1618, show1618)
+
+    // Zona atas 0 - 0.382
+    if show0 and show382
+        z1Top = math.max(fib0, fib382)
+        z1Bot = math.min(fib0, fib382)
+        z1 = box.new(left=b0, top=z1Top, right=bar_index, bottom=z1Bot, bgcolor=zoneTopColor, border_color=color.new(color.red, 100))
+        box.set_extend(z1, extendRight ? extend.right : extend.none)
+        array.push(fibZones, z1)
+
+    // Zona entry 0.382 - 0.618
+    if show382 and show618
+        z2Top = math.max(fib382, fib618)
+        z2Bot = math.min(fib382, fib618)
+        z2 = box.new(left=b0, top=z2Top, right=bar_index, bottom=z2Bot, bgcolor=zoneEntryColor, border_color=color.new(color.yellow, 100))
+        box.set_extend(z2, extendRight ? extend.right : extend.none)
+        array.push(fibZones, z2)
+
+    // Zona bawah 0.618 - 1
+    if show618 and show1
+        z3Top = math.max(fib618, fib1)
+        z3Bot = math.min(fib618, fib1)
+        z3 = box.new(left=b0, top=z3Top, right=bar_index, bottom=z3Bot, bgcolor=zoneBotColor, border_color=color.new(color.blue, 100))
+        box.set_extend(z3, extendRight ? extend.right : extend.none)
+        array.push(fibZones, z3)

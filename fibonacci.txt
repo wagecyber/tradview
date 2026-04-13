@@ -1,5 +1,5 @@
 //@version=6
-indicator("Fib", overlay=true, max_lines_count=300, max_labels_count=300, max_boxes_count=200)
+indicator("Fib Clean Zone", overlay=true, max_lines_count=300, max_labels_count=300, max_boxes_count=200)
 
 // =========================
 // Input
@@ -21,6 +21,9 @@ line5Color    = input.color(color.new(color.lime, 0), "Line 0.5")
 line618Color  = input.color(color.new(color.aqua, 0), "Line 0.618")
 line1Color    = input.color(color.new(color.blue, 0), "Line 1.0")
 line1618Color = input.color(color.new(color.teal, 0), "Line 1.618")
+line2618Color = input.color(color.new(color.fuchsia, 0), "Line 2.618")
+line3618Color = input.color(color.new(color.purple, 0), "Line 3.618")
+line4236Color = input.color(color.new(color.orange, 0), "Line 4.236")
 
 // Warna zona (mirip contoh)
 zoneTopColor   = input.color(color.new(color.red, 82), "Zona Atas (0 - 0.382)")
@@ -35,6 +38,9 @@ show5    = input.bool(true,  "0.5")
 show618  = input.bool(true,  "0.618")
 show1    = input.bool(true,  "1.0")
 show1618 = input.bool(false, "1.618 (Ext)")
+show2618 = input.bool(false, "2.618 (Ext)")
+show3618 = input.bool(false, "3.618 (Ext)")
+show4236 = input.bool(false, "4.236 (Ext)")
 
 // =========================
 // Pivot detection
@@ -86,6 +92,9 @@ fib5    = p0 + priceRange * 0.5
 fib618  = p0 + priceRange * 0.618
 fib1    = p0 + priceRange * 1.0
 fib1618 = p0 + priceRange * 1.618
+fib2618 = p0 + priceRange * 2.618
+fib3618 = p0 + priceRange * 3.618
+fib4236 = p0 + priceRange * 4.236
 
 // =========================
 // Draw objects
@@ -116,7 +125,10 @@ f_level_color(_ratio) =>
      _ratio == 0.382 ? line382Color :
      _ratio == 0.5 ? line5Color :
      _ratio == 0.618 ? line618Color :
-     _ratio == 1.0 ? line1Color : line1618Color
+     _ratio == 1.0 ? line1Color :
+     _ratio == 1.618 ? line1618Color :
+     _ratio == 2.618 ? line2618Color :
+     _ratio == 3.618 ? line3618Color : line4236Color
 
 f_label_size(_opt) =>
     _opt == "tiny" ? size.tiny :
@@ -162,6 +174,9 @@ if pivotChanged and not na(p0) and not na(p1)
     f_draw_level(0.618, fib618, show618)
     f_draw_level(1.0, fib1, show1)
     f_draw_level(1.618, fib1618, show1618)
+    f_draw_level(2.618, fib2618, show2618)
+    f_draw_level(3.618, fib3618, show3618)
+    f_draw_level(4.236, fib4236, show4236)
 
     // Zona atas 0 - 0.382
     if show0 and show382

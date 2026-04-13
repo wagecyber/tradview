@@ -1,0 +1,81 @@
+//@version=6
+indicator("Bottom Alerts", shorttitle="Bottom Alerts Pro", overlay=false, max_lines_count=500)
+
+// =========================
+// Inputs
+// =========================
+grpMain = "Main"
+rangeInput = input.int(265, "Range (The higher the number, the bigger the drop must be to give a signal)", minval=20, maxval=1000, group=grpMain)
+pd = input.int(22, "WVF Lookback", minval=2, maxval=200, group=grpMain)
+bbl = input.int(20, "BB Length", minval=5, maxval=200, group=grpMain)
+mult = input.float(2.0, "BB Multiplier", minval=0.1, maxval=10.0, step=0.1, group=grpMain)
+cooldownBars = input.int(8, "Signal Cooldown Bars", minval=0, maxval=200, group=grpMain)
+
+grpVisual = "Visual"
+showVerticalLine = input.bool(true, "Show Green Vertical Signal Line", group=grpVisual)
+showBlueDot = input.bool(true, "Show Blue Dot (Info Marker)", group=grpVisual)
+histGray = input.color(color.new(color.gray, 55), "Histogram Gray", group=grpVisual)
+sigGreen = input.color(color.new(color.lime, 0), "Signal Green", group=grpVisual)
+dotBlue = input.color(color.new(color.blue, 0), "Blue Dot", group=grpVisual)
+
+// =========================
+// Core Calculation (WVF-style)
+// =========================
+highestClose = ta.highest(close, pd)
+wvf = highestClose != 0.0 ? ((highestClose - low) / highestClose) * 100.0 : 0.0
+
+midLine = ta.sma(wvf, bbl)
+dev = mult * ta.stdev(wvf, bbl)
+upperBand = midLine + dev
+
+// Dynamic range threshold:
+// makin besar "rangeInput" => syarat sinyal makin ketat.
+rangePct = math.max(0.75, math.min(0.99, 1.0 - (1000.0 - rangeInput) / 5000.0))
+rangeHigh = ta.highest(wvf, rangeInput) * rangePct
+
+rawSignal = (wvf >= upperBand) or (wvf >= rangeHigh)
+
+// Cooldown agar garis tidak spam
+var int lastSignalBar = na
+canFire = na(lastSignalBar) or (bar_index - lastSignalBar > cooldownBars)
+signal = rawSignal and canFire
+
+if signal
+    lastSignalBar := bar_index
+
+// =========================
+// Plots
+// =========================
+histColor = signal ? sigGreen : histGray
+plot(wvf, title="Williams Vix Fix", style=plot.style_histogram, linewidth=2, color=histColor)
+
+plot(upperBand, title="Upper Threshold", color=color.new(color.gray, 80), linewidth=1)
+plot(rangeHigh, title="Range Threshold", color=color.new(color.gray, 88), linewidth=1)
+
+// Vertical green line (mirip screenshot)
+if showVerticalLine and signal
+    line.new(
+         x1=bar_index, y1=0,
+         x2=bar_index, y2=wvf,
+         xloc=xloc.bar_index,
+         extend=extend.none,
+         color=sigGreen,
+         width=2
+     )
+
+// Blue info dot (opsional, untuk bantu visual seperti screenshot)
+infoDot = ta.pivotlow(low, 3, 3)
+blueDotSeries = showBlueDot and not na(infoDot) ? wvf : na
+plot(
+     blueDotSeries,
+     title="Blue Dot",
+     style=plot.style_circles,
+     color=dotBlue,
+     linewidth=2
+ )
+
+// Alert condition
+alertcondition(signal, title="Bottom Alert", message="Bottom Alerts Pro Clone: potential bottom detected")
+
+// Status line helper
+plotchar(rangeInput, title="Range Value", char="", location=location.top)
